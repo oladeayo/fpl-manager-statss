@@ -6,24 +6,52 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
-        #results {
-            margin-top: 20px;
+        .stats-container {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .filter-container {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            align-items: center;
         }
         table {
             width: 100%;
             border-collapse: collapse;
+            margin: 20px 0;
         }
         th, td {
             border: 1px solid #ddd;
-            padding: 8px;
+            padding: 12px 8px;
             text-align: left;
         }
         th {
-            background-color: #f2f2f2;
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+        th:hover {
+            background-color: #e9ecef;
+        }
+        .number-cell {
+            text-align: right;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .position-summary {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -36,64 +64,157 @@
         <button onclick="analyzeManager()">Analyze Manager</button>
     </div>
 
+    <div id="loading" class="loading">Analyzing manager data...</div>
     <div id="results"></div>
 
     <script>
-        async function analyzeManager() {
-            const managerId = document.getElementById('managerId').value;
+        let currentData = null;
+
+        function formatNumber(number) {
+            return typeof number === 'number' ? number.toLocaleString() : number;
+        }
+
+        function sortTable(column) {
+            if (!currentData || !currentData.playerStats) return;
+            
+            const isAscending = column === window.lastSortColumn ? !window.isAscending : false;
+            window.lastSortColumn = column;
+            window.isAscending = isAscending;
+
+            currentData.playerStats.sort((a, b) => {
+                let comparison = 0;
+                if (typeof a[column] === 'number') {
+                    comparison = a[column] - b[column];
+                } else {
+                    comparison = String(a[column]).localeCompare(String(b[column]));
+                }
+                return isAscending ? comparison : -comparison;
+            });
+
+            displayResults(currentData);
+        }
+
+        function filterPlayers(searchTerm) {
+            if (!currentData || !currentData.playerStats) return;
+            
+            const filteredPlayers = currentData.playerStats.filter(player => 
+                player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                player.team.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                player.position.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+
+            const tempData = { ...currentData, playerStats: filteredPlayers };
+            displayResults(tempData);
+        }
+
+        function displayResults(data) {
             const resultsDiv = document.getElementById('results');
             
-            try {
-                const response = await fetch(`/api/analyze-manager/${managerId}`);
-                const data = await response.json();
-
-                // Create HTML for manager info
-                let html = `
+            let html = `
+                <div class="stats-container">
                     <h2>Manager Information</h2>
                     <p><strong>Name:</strong> ${data.managerInfo.name}</p>
                     <p><strong>Team Name:</strong> ${data.managerInfo.teamName}</p>
                     <p><strong>Overall Ranking:</strong> ${data.managerInfo.overallRanking}</p>
-                    <p><strong>Total Points:</strong> ${data.managerInfo.managerPoints}</p>
+                    <p><strong>Total Points:</strong> ${formatNumber(data.managerInfo.managerPoints)}</p>
+                    <p><strong>Points Lost on Bench:</strong> ${formatNumber(data.managerInfo.totalPointsLostOnBench)}</p>
+                    <p><strong>Total Captaincy Points:</strong> ${formatNumber(data.managerInfo.totalCaptaincyPoints)}</p>
+                    <p><strong>Point Difference to Leader:</strong> ${formatNumber(data.managerInfo.pointDifference)}</p>
                     <p><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
                     <p><strong>Last Season Rank:</strong> ${data.managerInfo.lastSeasonRank}</p>
                     <p><strong>Season Before Last Rank:</strong> ${data.managerInfo.seasonBeforeLastRank}</p>
+                </div>
 
-                    <h2>Top Players</h2>
+                <div class="filter-container">
+                    <label for="searchInput">Filter Players:</label>
+                    <input type="text" id="searchInput" placeholder="Search by name, team, or position" 
+                           onkeyup="filterPlayers(this.value)">
+                </div>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable('name')">Player Name</th>
+                            <th onclick="sortTable('team')">Team</th>
+                            <th onclick="sortTable('position')">Position</th>
+                            <th onclick="sortTable('totalPointsActive')" class="number-cell">Total Points</th>
+                            <th onclick="sortTable('gwInSquad')" class="number-cell">Games in Squad</th>
+                            <th onclick="sortTable('starts')" class="number-cell">Starts</th>
+                            <th onclick="sortTable('cappedPoints')" class="number-cell">Capped Points</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.playerStats.forEach(player => {
+                html += `
+                    <tr>
+                        <td>${player.name}</td>
+                        <td>${player.team}</td>
+                        <td>${player.position}</td>
+                        <td class="number-cell">${formatNumber(player.totalPointsActive)}</td>
+                        <td class="number-cell">${formatNumber(player.gwInSquad)}</td>
+                        <td class="number-cell">${formatNumber(player.starts)}</td>
+                        <td class="number-cell">${formatNumber(player.cappedPoints)}</td>
+                    </tr>
+                `;
+            });
+
+            html += `</tbody></table>`;
+
+            // Add Position Summary
+            html += `
+                <div class="position-summary">
+                    <h2>Points by Position</h2>
                     <table>
                         <thead>
                             <tr>
-                                <th>Player Name</th>
-                                <th>Team</th>
                                 <th>Position</th>
-                                <th>Total Points (Active)</th>
-                                <th>Games in Squad</th>
-                                <th>Starts</th>
-                                <th>Capped Points</th>
+                                <th class="number-cell">Total Points</th>
                             </tr>
                         </thead>
                         <tbody>
-                `;
+            `;
 
-                // Add player rows
-                data.sortedPlayers.forEach(player => {
-                    html += `
+            data.positionSummary.forEach(pos => {
+                html += `
+                    <tr>
+                        <td><strong>${pos.position}</strong></td>
+                        <td class="number-cell"><strong>${formatNumber(pos.totalPoints)}</strong></td>
+                    </tr>
+                    ${pos.players.map(player => `
                         <tr>
                             <td>${player.name}</td>
-                            <td>${player.team}</td>
-                            <td>${player.position}</td>
-                            <td>${player.totalPointsActive}</td>
-                            <td>${player.gwInSquad}</td>
-                            <td>${player.starts}</td>
-                            <td>${player.cappedPoints}</td>
+                            <td class="number-cell">${formatNumber(player.points)}</td>
                         </tr>
-                    `;
-                });
+                    `).join('')}
+                    <tr><td colspan="2">&nbsp;</td></tr>
+                `;
+            });
 
-                html += `</tbody></table>`;
+            html += `</tbody></table></div>`;
 
-                resultsDiv.innerHTML = html;
+            resultsDiv.innerHTML = html;
+        }
+
+        async function analyzeManager() {
+            const managerId = document.getElementById('managerId').value;
+            const loadingDiv = document.getElementById('loading');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                loadingDiv.style.display = 'block';
+                resultsDiv.innerHTML = '';
+                
+                const response = await fetch(`/api/analyze-manager/${managerId}`);
+                const data = await response.json();
+                
+                currentData = data;
+                displayResults(data);
             } catch (error) {
                 resultsDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            } finally {
+                loadingDiv.style.display = 'none';
             }
         }
     </script>

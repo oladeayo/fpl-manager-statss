@@ -33,89 +33,37 @@ app.get('/api/bootstrap-static', async (req, res) => {
 });
 
 
-app.get('/api/entry/:managerId', async (req, res) => {
-  try {
-    const { managerId } = req.params;
-    const managerEntryResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/`);
-    res.json(managerEntryResponse.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch manager entry data' });
-  }
-});
-
-app.get('/api/entry/:managerId/history', async (req, res) => {
-  try {
-    const { managerId } = req.params;
-    const historyResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/history/`);
-    res.json(historyResponse.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch manager history' });
-  }
-});
-
-app.get('/api/entry/:managerId/event/:gameweek/picks', async (req, res) => {
-  try {
-    const { managerId, gameweek } = req.params;
-    const picksResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/event/${gameweek}/picks/`);
-    res.json(picksResponse.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch manager picks' });
-  }
-});
-
-app.get('/api/element-summary/:playerId', async (req, res) => {
-  try {
-    const { playerId } = req.params;
-    const playerSummaryResponse = await axios.get(`https://fantasy.premierleague.com/api/element-summary/${playerId}/`);
-    res.json(playerSummaryResponse.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch player summary' });
-  }
-});
-
-app.get('/api/leagues-classic/:leagueId/standings', async (req, res) => {
-  try {
-    const { leagueId } = req.params;
-    const leagueResponse = await axios.get(`https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`);
-    res.json(leagueResponse.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch league standings' });
-  }
-});
+// CORS and middleware setup remains the same...
 
 app.get('/api/analyze-manager/:managerId', async (req, res) => {
   try {
     const { managerId } = req.params;
+    const leagueId = 314; // Your league ID
     
-    // Fetch bootstrap static data
-    const playerDataResponse = await axios.get('https://fantasy.premierleague.com/api/bootstrap-static/');
+    // Fetch all required data in parallel
+    const [playerDataResponse, managerEntryResponse, historyResponse, leagueResponse] = await Promise.all([
+      axios.get('https://fantasy.premierleague.com/api/bootstrap-static/'),
+      axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/`),
+      axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/history/`),
+      axios.get(`https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`)
+    ]);
+
     const playerData = playerDataResponse.data;
+    const managerEntryData = managerEntryResponse.data;
+    const historyData = historyResponse.data;
+    const leagueData = leagueResponse.data;
 
     const currentGameweek = playerData.events.find(event => event.is_current).id;
+    const topManagerPoints = leagueData.standings.results[0].total;
+    
+    // Initialize analysis data structure
+    let totalCaptaincyPoints = 0;
+    let totalPointsActive = 0;
+    let totalPointsLostOnBench = 0;
+    const playerStats = {};
+    const positionPoints = { GKP: {}, DEF: {}, MID: {}, FWD: {} };
 
-    // Fetch manager entry data
-    const managerEntryResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/`);
-    const managerEntryData = managerEntryResponse.data;
-
-    // Fetch manager history
-    const historyResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/history/`);
-    const historyData = historyResponse.data;
-
-    // Prepare analysis data structure
-    const analysis = {
-      managerInfo: {
-        name: `${managerEntryData.player_first_name} ${managerEntryData.player_last_name}`,
-        teamName: managerEntryData.name,
-        overallRanking: managerEntryData.summary_overall_rank || "N/A",
-        managerPoints: managerEntryData.summary_overall_points,
-        allChipsUsed: historyData.chips.map(chip => chip.name).join(", ") || "None",
-        lastSeasonRank: historyData.past.length > 0 ? historyData.past[historyData.past.length - 1].rank : "Didn't Play",
-        seasonBeforeLastRank: historyData.past.length > 1 ? historyData.past[historyData.past.length - 2].rank : "Didn't Play"
-      },
-      playerStats: {}
-    };
-
-    // Analyze player performance across gameweeks
+    // Process each gameweek
     for (let gw = 1; gw <= currentGameweek; gw++) {
       const managerPicksResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/event/${gw}/picks/`);
       const managerPicksData = managerPicksResponse.data;
@@ -126,19 +74,16 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
 
       for (const pick of managerPicks) {
         const playerId = pick.element;
-        const player = playerData.elements.find(p => p.id === playerId);
+        const player = playerData.elements.find(p => p.id == playerId);
         if (!player) continue;
 
-        // Fetch individual player history
         const playerHistoryResponse = await axios.get(`https://fantasy.premierleague.com/api/element-summary/${playerId}/`);
         const playerHistory = playerHistoryResponse.data.history;
-
         const gameweekHistory = playerHistory.find(history => history.round === gw);
         const pointsThisWeek = gameweekHistory ? gameweekHistory.total_points : 0;
 
-        // Initialize player stats if not exists
-        if (!analysis.playerStats[playerId]) {
-          analysis.playerStats[playerId] = {
+        if (!playerStats[playerId]) {
+          playerStats[playerId] = {
             name: player.web_name,
             team: playerData.teams[player.team - 1].name,
             position: ["GKP", "DEF", "MID", "FWD"][player.element_type - 1],
@@ -150,30 +95,60 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
           };
         }
 
-        const playerStat = analysis.playerStats[playerId];
-        const inStarting11 = managerPicks.indexOf(pick) < 11;
+        const inStarting11 = pick.position <= 11;
+        const isCaptain = pick.is_captain;
 
-        // Update player stats
-        playerStat.playerPoints += pointsThisWeek;
+        playerStats[playerId].playerPoints += pointsThisWeek;
 
         if (inStarting11 || isBenchBoost) {
           let activePoints = pointsThisWeek;
-          if (pick.is_captain) {
+          if (isCaptain) {
             activePoints *= isTripleCaptain ? 3 : 2;
-            playerStat.cappedPoints += activePoints;
+            totalCaptaincyPoints += activePoints;
+            playerStats[playerId].cappedPoints += activePoints;
           }
 
-          playerStat.totalPointsActive += activePoints;
+          playerStats[playerId].totalPointsActive += activePoints;
+          totalPointsActive += activePoints;
 
-          if (inStarting11) playerStat.starts += 1;
-          playerStat.gwInSquad += 1;
+          const position = playerStats[playerId].position;
+          if (!positionPoints[position][playerId]) {
+            positionPoints[position][playerId] = {
+              name: playerStats[playerId].name,
+              points: 0
+            };
+          }
+          positionPoints[position][playerId].points += activePoints;
+
+          if (inStarting11) playerStats[playerId].starts += 1;
+          playerStats[playerId].gwInSquad += 1;
+        } else {
+          totalPointsLostOnBench += pointsThisWeek;
         }
       }
     }
 
-    // Convert player stats to sorted array
-    analysis.sortedPlayers = Object.values(analysis.playerStats)
-      .sort((a, b) => b.totalPointsActive - a.totalPointsActive);
+    // Prepare the complete analysis object
+    const analysis = {
+      managerInfo: {
+        name: `${managerEntryData.player_first_name} ${managerEntryData.player_last_name}`,
+        teamName: managerEntryData.name,
+        overallRanking: managerEntryData.summary_overall_rank?.toLocaleString() || "N/A",
+        managerPoints: managerEntryData.summary_overall_points,
+        allChipsUsed: historyData.chips.map(chip => chip.name).join(", ") || "None",
+        lastSeasonRank: historyData.past.length > 0 ? historyData.past[historyData.past.length - 1].rank.toLocaleString() : "Didn't Play",
+        seasonBeforeLastRank: historyData.past.length > 1 ? historyData.past[historyData.past.length - 2].rank.toLocaleString() : "Didn't Play",
+        pointDifference: managerEntryData.summary_overall_points - topManagerPoints,
+        totalPointsLostOnBench,
+        totalCaptaincyPoints
+      },
+      playerStats: Object.values(playerStats).sort((a, b) => b.totalPointsActive - a.totalPointsActive),
+      positionSummary: Object.entries(positionPoints).map(([position, players]) => ({
+        position,
+        totalPoints: Object.values(players).reduce((sum, player) => sum + player.points, 0),
+        players: Object.values(players).sort((a, b) => b.points - a.points)
+      }))
+    };
 
     res.json(analysis);
   } catch (error) {
@@ -182,7 +157,6 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
   }
 });
 
-// Export the app for Vercel
 module.exports = app;
 
 // Only listen if running directly (not in Vercel)
