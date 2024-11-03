@@ -80,191 +80,190 @@
     </div>
 
     <script>
+        let pointsChart = null;
+        let rankChart = null;
 
-    let pointsChart = null;
-    let rankChart = null;
-
-    async function analyzeManager() {
-        const managerId = document.getElementById('managerId').value;
-        const resultsDiv = document.getElementById('results');
-        const chartsDiv = document.getElementById('charts');
-
-        // Display loading spinner
-        resultsDiv.innerHTML = `
-            <div class="flex justify-center items-center py-8">
-                <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-        `;
-        chartsDiv.classList.add('hidden');
-
-        try {
-            const response = await fetch(`/api/analyze-manager/${managerId}`);
+        async function getManagerHistory(managerId) {
+            const response = await fetch(`https://fantasy.premierleague.com/api/entry/${managerId}/history/`);
             const data = await response.json();
+            return data.current;
+        }
 
-            // Generate mock data for charts if not provided by API
-            const weeklyPoints = generateWeeklyPoints(data.managerInfo.currentGameweek, data.managerInfo.managerPoints);
-            const weeklyRanks = generateWeeklyRanks(data.managerInfo.currentGameweek, data.managerInfo.overallRanking);
+        async function getGameweekStatus() {
+            const response = await fetch('https://fantasy.premierleague.com/api/bootstrap-static/');
+            const data = await response.json();
+            return data.events;
+        }
 
-            // [Previous manager information HTML generation remains the same]
+        async function analyzeManager() {
+            const managerId = document.getElementById('managerId').value;
+            const resultsDiv = document.getElementById('results');
+            const chartsDiv = document.getElementById('charts');
 
-            // Show charts section
-            chartsDiv.classList.remove('hidden');
-
-            // Create charts with the generated/actual data
-            createPointsChart(weeklyPoints);
-            createRankChart(weeklyRanks);
-
-        } catch (error) {
+            // Display loading spinner
             resultsDiv.innerHTML = `
-                <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
-                    <div class="flex">
-                        <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
-                        <p class="text-red-700 font-medium">Error: ${error.message}</p>
-                    </div>
+                <div class="flex justify-center items-center py-8">
+                    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
                 </div>
             `;
             chartsDiv.classList.add('hidden');
+
+            try {
+                // Fetch both manager history and gameweek status
+                const [managerHistory, gameweeks] = await Promise.all([
+                    getManagerHistory(managerId),
+                    getGameweekStatus()
+                ]);
+
+                // Filter only completed gameweeks
+                const completedGameweeks = gameweeks.filter(gw => gw.finished);
+                const lastCompletedGW = completedGameweeks.length;
+
+                // Filter manager history to only include completed gameweeks
+                const validHistory = managerHistory.filter(gw => gw.event <= lastCompletedGW);
+
+                // Prepare data for charts
+                const weeklyPoints = validHistory.map(gw => gw.points);
+                const weeklyRanks = validHistory.map(gw => gw.overall_rank);
+                const gameweekLabels = validHistory.map(gw => `GW${gw.event}`);
+
+                // Rest of your data processing for manager info...
+                // You'll need to modify this according to your API response structure
+
+                // Show charts section
+                chartsDiv.classList.remove('hidden');
+
+                // Create charts with the filtered data
+                createPointsChart(weeklyPoints, gameweekLabels);
+                createRankChart(weeklyRanks, gameweekLabels);
+
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                        <div class="flex">
+                            <i class="fas fa-exclamation-circle text-red-500 mr-2"></i>
+                            <p class="text-red-700 font-medium">Error: ${error.message}</p>
+                        </div>
+                    </div>
+                `;
+                chartsDiv.classList.add('hidden');
+            }
         }
-    }
 
-    // Function to generate mock weekly points if not provided by API
-    function generateWeeklyPoints(currentGameweek, totalPoints) {
-        if (!currentGameweek || !totalPoints) return [];
-        
-        const avgPointsPerWeek = Math.floor(totalPoints / currentGameweek);
-        return Array.from({length: currentGameweek}, () => 
-            avgPointsPerWeek + Math.floor(Math.random() * 20) - 10
-        );
-    }
+        function createPointsChart(weeklyPoints, labels) {
+            const ctx = document.getElementById('pointsChart').getContext('2d');
+            
+            if (pointsChart) {
+                pointsChart.destroy();
+            }
 
-    // Function to generate mock weekly ranks if not provided by API
-    function generateWeeklyRanks(currentGameweek, currentRank) {
-        if (!currentGameweek || !currentRank) return [];
-        
-        return Array.from({length: currentGameweek}, (_, i) => {
-            const progress = i / (currentGameweek - 1);
-            return Math.floor(currentRank * (1 + (Math.random() * 0.4 - 0.2)));
-        });
-    }
-
-    function createPointsChart(weeklyPoints) {
-        if (!weeklyPoints || !weeklyPoints.length) return;
-        
-        const ctx = document.getElementById('pointsChart').getContext('2d');
-        
-        if (pointsChart) {
-            pointsChart.destroy();
-        }
-
-        pointsChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: weeklyPoints.length}, (_, i) => `GW${i + 1}`),
-                datasets: [{
-                    label: 'Points',
-                    data: weeklyPoints,
-                    borderColor: 'rgb(59, 130, 246)',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `Points: ${context.raw}`;
-                            }
-                        }
-                    }
+            pointsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Points',
+                        data: weeklyPoints,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        grid: {
-                            display: true,
-                            color: 'rgba(0, 0, 0, 0.1)'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
                         },
-                        ticks: {
-                            callback: function(value) {
-                                return value.toLocaleString();
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Points: ${context.raw}`;
+                                }
                             }
                         }
                     },
-                    x: {
-                        grid: {
-                            display: false
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                display: true,
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toFixed(0);
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
                         }
                     }
                 }
-            }
-        });
-    }
-
-    function createRankChart(weeklyRanks) {
-        if (!weeklyRanks || !weeklyRanks.length) return;
-        
-        const ctx = document.getElementById('rankChart').getContext('2d');
-        
-        if (rankChart) {
-            rankChart.destroy();
+            });
         }
 
-        rankChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: Array.from({length: weeklyRanks.length}, (_, i) => `GW${i + 1}`),
-                datasets: [{
-                    label: 'Rank',
-                    data: weeklyRanks,
-                    borderColor: 'rgb(239, 68, 68)',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `Rank: ${context.raw.toLocaleString()}`;
-                            }
-                        }
-                    }
+        function createRankChart(weeklyRanks, labels) {
+            const ctx = document.getElementById('rankChart').getContext('2d');
+            
+            if (rankChart) {
+                rankChart.destroy();
+            }
+
+            rankChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Rank',
+                        data: weeklyRanks,
+                        borderColor: 'rgb(239, 68, 68)',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
                 },
-                scales: {
-                    y: {
-                        reverse: true,
-                        grid: {
-                            display: true,
-                            color: 'rgba(0, 0, 0, 0.1)'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
                         },
-                        ticks: {
-                            callback: function(value) {
-                                return value.toLocaleString();
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Rank: ${context.raw.toLocaleString()}`;
+                                }
                             }
                         }
                     },
-                    x: {
-                        grid: {
-                            display: false
+                    scales: {
+                        y: {
+                            reverse: true,
+                            grid: {
+                                display: true,
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
     }
 
         function shareApp() {
