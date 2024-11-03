@@ -15,6 +15,7 @@
     <link rel="icon" href="path/to/favicon.ico" type="image/x-icon">
 </head>
 <body class="bg-gray-100 min-h-screen">
+
     <!-- Main Container -->
     <div class="container mx-auto px-4 py-8">
         
@@ -130,23 +131,22 @@
 
                 // Player Stats Table
                 html += `
-                    <div class="bg-white rounded-lg shadow-lg p-6 overflow-x-auto">
+                    <div class="bg-white rounded-lg shadow-lg p-6">
                         <h2 class="text-2xl font-bold text-gray-800 mb-4">Squad Performance</h2>
-                        <div class="min-w-full inline-block align-middle">
-                            <div class="overflow-hidden">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player Name</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Games</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Starts</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Captain Points</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="bg-white divide-y divide-gray-200">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full bg-white border rounded-lg">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Games</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Starts</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Captain Points</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
                 `;
 
                 data.playerStats.forEach((player, index) => {
@@ -163,15 +163,15 @@
                     `;
                 });
 
-                html += `</tbody></table></div></div></div>`;
+                html += `</tbody></table></div></div>`;
                 resultsDiv.innerHTML = html;
 
-                // Show charts section and create charts if we have history data
-                if (data.history && data.history.length > 0) {
-                    chartsDiv.classList.remove('hidden');
-                    createPointsChart(data.history.map(gw => gw.points), data.history.map(gw => `GW${gw.event}`));
-                    createRankChart(data.history.map(gw => gw.overallRank), data.history.map(gw => `GW${gw.event}`));
-                }
+                // Show charts section
+                chartsDiv.classList.remove('hidden');
+
+                // Create charts
+                createPointsChart(data.weeklyPoints);
+                createRankChart(data.weeklyRanks);
 
             } catch (error) {
                 resultsDiv.innerHTML = `
@@ -186,7 +186,7 @@
             }
         }
 
-        function createPointsChart(weeklyPoints, labels) {
+        function createPointsChart(weeklyPoints) {
             const ctx = document.getElementById('pointsChart').getContext('2d');
             
             if (pointsChart) {
@@ -196,7 +196,7 @@
             pointsChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: Array.from({length: weeklyPoints.length}, (_, i) => `GW${i + 1}`),
                     datasets: [{
                         label: 'Points',
                         data: weeklyPoints,
@@ -212,13 +212,6 @@
                     plugins: {
                         legend: {
                             display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `Points: ${context.raw}`;
-                                }
-                            }
                         }
                     },
                     scales: {
@@ -227,11 +220,6 @@
                             grid: {
                                 display: true,
                                 color: 'rgba(0, 0, 0, 0.1)'
-                            },
-                            ticks: {
-                                callback: function(value) {
-                                    return value.toFixed(0);
-                                }
                             }
                         },
                         x: {
@@ -244,7 +232,7 @@
             });
         }
 
-        function createRankChart(weeklyRanks, labels) {
+        function createRankChart(weeklyRanks) {
             const ctx = document.getElementById('rankChart').getContext('2d');
             
             if (rankChart) {
@@ -254,7 +242,7 @@
             rankChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: Array.from({length: weeklyRanks.length}, (_, i) => `GW${i + 1}`),
                     datasets: [{
                         label: 'Rank',
                         data: weeklyRanks,
@@ -270,26 +258,15 @@
                     plugins: {
                         legend: {
                             display: false
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    return `Rank: ${context.raw.toLocaleString()}`;
-                                }
-                            }
                         }
                     },
                     scales: {
                         y: {
                             reverse: true,
+                            beginAtZero: true,
                             grid: {
                                 display: true,
                                 color: 'rgba(0, 0, 0, 0.1)'
-                            },
-                            ticks: {
-                                callback: function(value) {
-                                    return value.toLocaleString();
-                                }
                             }
                         },
                         x: {
@@ -325,4 +302,3 @@
     </script>
 </body>
 </html>
-  
