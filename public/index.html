@@ -12,7 +12,7 @@
       <script src="https://cdn.tailwindcss.com"></script>
       <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
       <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
-      <link rel="icon" href="path/to/favicon.ico" type="image/x-icon">
+      <link rel="icon" href="football.ico" type="image/x-icon">
   </head>
   <body class="bg-gray-100 min-h-screen">
   
@@ -54,7 +54,7 @@
   
               <!-- Rank Chart -->
               <div class="bg-white rounded-lg shadow-lg p-6">
-                  <h2 class="text-2xl font-bold text-gray-800 mb-4">Overall Rank Per Gameweek</h2>
+                  <h2 class="text-2xl font-bold text-gray-800 mb-4">Rank Per Gameweek</h2>
                   <div class="relative h-[300px] md:h-[400px]">
                       <canvas id="rankChart"></canvas>
                   </div>
@@ -127,11 +127,11 @@
                             <div class="space-y-2">
                                 <p class="text-gray-600"><strong>Name:</strong> ${data.managerInfo.name}</p>
                                 <p class="text-gray-600"><strong>Team Name:</strong> ${data.managerInfo.teamName}</p>
-                                <p class="text-gray-600"><strong>Current Gameweek:</strong> Gameweek ${data.managerInfo.currentGameweek}</p>
+                                <p class="text-gray-600"><strong>Current Gameweek:</strong> GW ${data.managerInfo.currentGameweek}</p>
                                 <p class="text-gray-600"><strong>Total Points:</strong> ${data.managerInfo.managerPoints} Points</p>
                                 <p class="text-gray-600"><strong>Average Points Per GW:</strong> ${(data.managerInfo.managerPoints / data.managerInfo.currentGameweek).toFixed(1)} Points</p>
-                                <p class="text-gray-600"><strong>Total Captain Points:</strong> ${data.managerInfo.totalCaptaincyPoints} Points</p>
-                                <p class="text-gray-600"><strong>Total Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench} Points</p>
+                                <p class="text-gray-600"><strong>Total Captain Points:</strong> ${data.managerInfo.totalCaptaincyPoints}</p>
+                                <p class="text-gray-600"><strong>Total Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench}</p>
                                 <p class="text-gray-600"><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
                                 
                             </div>
