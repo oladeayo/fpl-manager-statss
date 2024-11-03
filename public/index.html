@@ -121,28 +121,66 @@
           function populateResults(data) {
               const resultsDiv = document.getElementById('results');
               let html = `
-                  <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-                      <h2 class="text-2xl font-bold text-gray-800 mb-4">Manager's Summary</h2>
-                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div class="space-y-2">
-                              <p class="text-gray-600"><strong>Name:</strong> ${data.managerInfo.name}</p>
-                              <p class="text-gray-600"><strong>Team Name:</strong> ${data.managerInfo.teamName}</p>
-                              <p class="text-gray-600"><strong>Total Points:</strong> ${data.managerInfo.managerPoints}</p>
-                              <p class="text-gray-600"><strong>Total Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench}</p>
-                              <p class="text-gray-600"><strong>Total Captain Points:</strong> ${data.managerInfo.totalCaptaincyPoints}</p>
-                              <p class="text-gray-600"><strong>Current Gameweek:</strong> ${data.managerInfo.currentGameweek}</p>
-                              <p class="text-gray-600"><strong>Average Points Per GW:</strong> ${(data.managerInfo.managerPoints / data.managerInfo.currentGameweek).toFixed(1)}</p>
-                              <p class="text-gray-600"><strong>Highest Scoring GW:</strong> ${data.managerInfo.highestPoints} (GW${data.managerInfo.highestPointsGW})</p>
-                          </div>
-                          <div class="space-y-2">
-                              <p class="text-gray-600"><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
-                              <p class="text-gray-600"><strong>Point Difference to World No 1:</strong> ${data.managerInfo.pointDifference}</p>
-                              <p class="text-gray-600"><strong>Overall Rank:</strong> ${data.managerInfo.overallRanking}</p>
-                              <p class="text-gray-600"><strong>Lowest Scoring GW:</strong> ${data.managerInfo.lowestPoints} (GW${data.managerInfo.lowestPointsGW})</p>
-                          </div>
-                      </div>
-                  </div>
+                    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Manager's Summary</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <p class="text-gray-600"><strong>Name:</strong> ${data.managerInfo.name}</p>
+                                <p class="text-gray-600"><strong>Team Name:</strong> ${data.managerInfo.teamName}</p>
+                                <p class="text-gray-600"><strong>Total Points:</strong> ${data.managerInfo.managerPoints}</p>
+                                <p class="text-gray-600"><strong>Total Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench}</p>
+                                <p class="text-gray-600"><strong>Total Captain Points:</strong> ${data.managerInfo.totalCaptaincyPoints}</p>
+                                <p class="text-gray-600"><strong>Current Gameweek:</strong> ${data.managerInfo.currentGameweek}</p>
+                                <p class="text-gray-600"><strong>Average Points Per GW:</strong> ${(data.managerInfo.managerPoints / data.managerInfo.currentGameweek).toFixed(1)}</p>
+                                <p class="text-gray-600"><strong>Highest Scoring GW:</strong> ${data.managerInfo.highestPoints} (GW${data.managerInfo.highestPointsGW})</p>
+                            </div>
+                            <div class="space-y-2">
+                                <p class="text-gray-600"><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
+                                <p class="text-gray-600"><strong>Point Difference to World No 1:</strong> ${data.managerInfo.pointDifference}</p>
+                                <p class="text-gray-600"><strong>Overall Rank:</strong> ${data.managerInfo.overallRanking}</p>
+                                <p class="text-gray-600"><strong>2023/2024 Rank:</strong> ${data.managerInfo.lastSeasonRank}</p>
+                                <p class="text-gray-600"><strong>2022/2023 Rank:</strong> ${data.managerInfo.seasonBeforeLastRank}</p>
+                                <p class="text-gray-600"><strong>Lowest Scoring GW:</strong> ${data.managerInfo.lowestPoints} (GW${data.managerInfo.lowestPointsGW})</p>
+                                <p class="text-gray-600"><strong>Highest Rank:</strong> ${data.managerInfo.highestRank} (GW${data.managerInfo.highestRankGW})</p>
+                                <p class="text-gray-600"><strong>Lowest Rank:</strong> ${data.managerInfo.lowestRank} (GW${data.managerInfo.lowestRankGW})</p>
+                            </div>
+                        </div>
+                    </div>
               `;
+
+            // Player Stats Table
+            html += `
+                    <div class="bg-white rounded-lg shadow-lg p-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Squad Performance</h2>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full bg-white border rounded-lg">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player Name</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Games</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Starts</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Captain Points</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                `;
+
+                data.playerStats.forEach((player, index) => {
+                    html += `
+                        <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">${player.name}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${player.team}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${player.position}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${player.totalPointsActive}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${player.gwInSquad}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${player.starts}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${player.cappedPoints}</td>
+                        </tr>
+                    `;
+                });
               resultsDiv.innerHTML = html;
           }
   
