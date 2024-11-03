@@ -53,7 +53,7 @@
           <div class="text-center mt-12">
               <p class="text-gray-600">Created by 
                   <a href="https://twitter.com/Oladeeayo" target="_blank" class="text-blue-500 font-medium hover:underline">
-                      Oladeayo
+                      Oladeeayo
                   </a>
               </p>
           </div>
@@ -78,21 +78,21 @@
                   // Manager Information
                   let html = `
                       <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
-                          <h2 class="text-2xl font-bold text-gray-800 mb-4">Manager Information</h2>
+                          <h2 class="text-2xl font-bold text-gray-800 mb-4">Manager's Summary</h2>
                           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div class="space-y-2">
                                   <p class="text-gray-600"><strong>Name:</strong> ${data.managerInfo.name}</p>
                                   <p class="text-gray-600"><strong>Team Name:</strong> ${data.managerInfo.teamName}</p>
-                                  <p class="text-gray-600"><strong>Overall Ranking:</strong> ${data.managerInfo.overallRanking}</p>
                                   <p class="text-gray-600"><strong>Total Points:</strong> ${data.managerInfo.managerPoints}</p>
-                                  <p class="text-gray-600"><strong>Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench}</p>
-                                  <p class="text-gray-600"><strong>Total Captaincy Points:</strong> ${data.managerInfo.totalCaptaincyPoints}</p>
-                                  <p class="text-gray-600"><strong>Point Difference to Leader:</strong> ${data.managerInfo.pointDifference}</p>
+                                  <p class="text-gray-600"><strong>Total Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench}</p>
+                                  <p class="text-gray-600"><strong>Total Captain Points:</strong> ${data.managerInfo.totalCaptaincyPoints}</p>
                               </div>
                               <div class="space-y-2">
                                   <p class="text-gray-600"><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
-                                  <p class="text-gray-600"><strong>Last Season Rank:</strong> ${data.managerInfo.lastSeasonRank}</p>
-                                  <p class="text-gray-600"><strong>Season Before Last Rank:</strong> ${data.managerInfo.seasonBeforeLastRank}</p>
+                                  <p class="text-gray-600"><strong>Point Difference to World No 1:</strong> ${data.managerInfo.pointDifference}</p>
+                                  <p class="text-gray-600"><strong>Overall Rank:</strong> ${data.managerInfo.overallRanking}</p>
+                                  <p class="text-gray-600"><strong>2023/2024 Season Rank:</strong> ${data.managerInfo.lastSeasonRank}</p>
+                                  <p class="text-gray-600"><strong>2022/2023 Rank:</strong> ${data.managerInfo.seasonBeforeLastRank}</p>
                               </div>
                           </div>
                       </div>
