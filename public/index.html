@@ -3,257 +3,147 @@
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>FPL Manager Stats</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .stats-container {
-            margin: 20px 0;
-            padding: 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        .filter-container {
-            margin: 20px 0;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 12px 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f8f9fa;
-            cursor: pointer;
-        }
-        th:hover {
-            background-color: #e9ecef;
-        }
-        .number-cell {
-            text-align: right;
-        }
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        .position-summary {
-            margin-top: 30px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            .footer {
-    margin-top: 40px;
-    text-align: center;
-    padding: 20px;
-    color: #333;
-}
-
-.twitter-link {
-    display: inline-flex;
-    align-items: center;
-    text-decoration: none;
-    color: #1DA1F2;
-    font-weight: 500;
-    transition: opacity 0.2s;
-}
-
-.twitter-link:hover {
-    opacity: 0.8;
-}
-
-.twitter-logo {
-    margin-left: 6px;
-    width: 20px;
-    height: 20px;
-}
-        }
-    </style>
-</head>
-<body>
-    <h1>Fantasy Premier League Manager Stats</h1>
-    
-    <div>
-        <label for="managerId">Enter Manager ID:</label>
-        <input type="text" id="managerId">
-        <button onclick="analyzeManager()">Analyze Manager</button>
-    </div>
-
-    <div id="loading" class="loading">Analyzing manager data...</div>
-    <div id="results"></div>
-
-    <script>
-        let currentData = null;
-
-        function formatNumber(number) {
-            return typeof number === 'number' ? number.toLocaleString() : number;
-        }
-
-        function sortTable(column) {
-            if (!currentData || !currentData.playerStats) return;
-            
-            const isAscending = column === window.lastSortColumn ? !window.isAscending : false;
-            window.lastSortColumn = column;
-            window.isAscending = isAscending;
-
-            currentData.playerStats.sort((a, b) => {
-                let comparison = 0;
-                if (typeof a[column] === 'number') {
-                    comparison = a[column] - b[column];
-                } else {
-                    comparison = String(a[column]).localeCompare(String(b[column]));
-                }
-                return isAscending ? comparison : -comparison;
-            });
-
-            displayResults(currentData);
-        }
-
-        function filterPlayers(searchTerm) {
-            if (!currentData || !currentData.playerStats) return;
-            
-            const filteredPlayers = currentData.playerStats.filter(player => 
-                player.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                player.team.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                player.position.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-
-            const tempData = { ...currentData, playerStats: filteredPlayers };
-            displayResults(tempData);
-        }
-
-        function displayResults(data) {
-            const resultsDiv = document.getElementById('results');
-            
-            let html = `
-                <div class="stats-container">
-                    <h2>Manager Information</h2>
-                    <p><strong>Name:</strong> ${data.managerInfo.name}</p>
-                    <p><strong>Team Name:</strong> ${data.managerInfo.teamName}</p>
-                    <p><strong>Overall Ranking:</strong> ${data.managerInfo.overallRanking}</p>
-                    <p><strong>Total Points:</strong> ${formatNumber(data.managerInfo.managerPoints)}</p>
-                    <p><strong>Points Lost on Bench:</strong> ${formatNumber(data.managerInfo.totalPointsLostOnBench)}</p>
-                    <p><strong>Total Captaincy Points:</strong> ${formatNumber(data.managerInfo.totalCaptaincyPoints)}</p>
-                    <p><strong>Point Difference to Leader:</strong> ${formatNumber(data.managerInfo.pointDifference)}</p>
-                    <p><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
-                    <p><strong>Last Season Rank:</strong> ${data.managerInfo.lastSeasonRank}</p>
-                    <p><strong>Season Before Last Rank:</strong> ${data.managerInfo.seasonBeforeLastRank}</p>
-                </div>
-
-                <div class="filter-container">
-                    <label for="searchInput">Filter Players:</label>
-                    <input type="text" id="searchInput" placeholder="Search by name, team, or position" 
-                           onkeyup="filterPlayers(this.value)">
-                </div>
-
-                <table>
-                    <thead>
-                        <tr>
-                            <th onclick="sortTable('name')">Player Name</th>
-                            <th onclick="sortTable('team')">Team</th>
-                            <th onclick="sortTable('position')">Position</th>
-                            <th onclick="sortTable('totalPointsActive')" class="number-cell">Total Points</th>
-                            <th onclick="sortTable('gwInSquad')" class="number-cell">Games in Squad</th>
-                            <th onclick="sortTable('starts')" class="number-cell">Starts</th>
-                            <th onclick="sortTable('cappedPoints')" class="number-cell">Capped Points</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-
-            data.playerStats.forEach(player => {
-                html += `
-                    <tr>
-                        <td>${player.name}</td>
-                        <td>${player.team}</td>
-                        <td>${player.position}</td>
-                        <td class="number-cell">${formatNumber(player.totalPointsActive)}</td>
-                        <td class="number-cell">${formatNumber(player.gwInSquad)}</td>
-                        <td class="number-cell">${formatNumber(player.starts)}</td>
-                        <td class="number-cell">${formatNumber(player.cappedPoints)}</td>
-                    </tr>
-                `;
-            });
-
-            html += `</tbody></table>`;
-
-            // Add Position Summary
-            html += `
-                <div class="position-summary">
-                    <h2>Points by Position</h2>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Position</th>
-                                <th class="number-cell">Total Points</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            data.positionSummary.forEach(pos => {
-                html += `
-                    <tr>
-                        <td><strong>${pos.position}</strong></td>
-                        <td class="number-cell"><strong>${formatNumber(pos.totalPoints)}</strong></td>
-                    </tr>
-                    ${pos.players.map(player => `
-                        <tr>
-                            <td>${player.name}</td>
-                            <td class="number-cell">${formatNumber(player.points)}</td>
-                        </tr>
-                    `).join('')}
-                    <tr><td colspan="2">&nbsp;</td></tr>
-                `;
-            });
-
-            html += `</tbody></table></div>`;
-
-            resultsDiv.innerHTML = html;
-        }
-
-        async function analyzeManager() {
-            const managerId = document.getElementById('managerId').value;
-            const loadingDiv = document.getElementById('loading');
-            const resultsDiv = document.getElementById('results');
-            
-            try {
-                loadingDiv.style.display = 'block';
-                resultsDiv.innerHTML = '';
-                
-                const response = await fetch(`/api/analyze-manager/${managerId}`);
-                const data = await response.json();
-                
-                currentData = data;
-                displayResults(data);
-            } catch (error) {
-                resultsDiv.innerHTML = `<p>Error: ${error.message}</p>`;
-            } finally {
-                loadingDiv.style.display = 'none';
-            }
-        }
-    </script>
-
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>FPL Manager Stats</title>
+      <script src="https://cdn.tailwindcss.com"></script>
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-gray-100 min-h-screen">
+      <div class="container mx-auto px-4 py-8">
+          <!-- Main Header Section -->
+          <div class="text-center mb-12">
+              <h1 class="text-4xl font-bold text-gray-800 mb-4">Check Manager Stats</h1>
+              <p class="text-gray-600 text-lg">Check where you have accumulated points so far using your team ID</p>
+          </div>
+  
+          <!-- Input Card Section -->
+          <div class="max-w-xl mx-auto">
+              <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                  <div class="space-y-4">
+                      <div class="relative">
+                          <input type="text" 
+                                 id="managerId" 
+                                 class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                 placeholder="Enter Manager ID">
+                      </div>
+                      <button onclick="analyzeManager()" 
+                              class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 flex items-center justify-center gap-2">
+                          <i class="fas fa-search"></i>
+                          Analyze Stats
+                      </button>
+                  </div>
+              </div>
+          </div>
+  
+          <!-- Results Section -->
+          <div id="results" class="max-w-4xl mx-auto space-y-6"></div>
+      </div>
+  
+      <script>
+          async function analyzeManager() {
+              const managerId = document.getElementById('managerId').value;
+              const resultsDiv = document.getElementById('results');
+              
+              // Show loading state
+              resultsDiv.innerHTML = `
+                  <div class="flex justify-center items-center py-8">
+                      <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                  </div>
+              `;
+              
+              try {
+                  const response = await fetch(`/api/analyze-manager/${managerId}`);
+                  const data = await response.json();
+  
+                  // Create HTML for manager info
+                  let html = `
+                      <!-- Manager Info Card -->
+                      <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                          <h2 class="text-2xl font-bold text-gray-800 mb-4">Manager Information</h2>
+                          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div class="space-y-2">
+                                  <p class="text-gray-600"><span class="font-semibold">Name:</span> ${data.managerInfo.name}</p>
+                                  <p class="text-gray-600"><span class="font-semibold">Team Name:</span> ${data.managerInfo.teamName}</p>
+                                  <p class="text-gray-600"><span class="font-semibold">Overall Ranking:</span> ${data.managerInfo.overallRanking}</p>
+                                  <p class="text-gray-600"><span class="font-semibold">Total Points:</span> ${data.managerInfo.managerPoints}</p>
+                              </div>
+                              <div class="space-y-2">
+                                  <p class="text-gray-600"><span class="font-semibold">Chips Used:</span> ${data.managerInfo.allChipsUsed}</p>
+                                  <p class="text-gray-600"><span class="font-semibold">Last Season Rank:</span> ${data.managerInfo.lastSeasonRank}</p>
+                                  <p class="text-gray-600"><span class="font-semibold">Season Before Last:</span> ${data.managerInfo.seasonBeforeLastRank}</p>
+                              </div>
+                          </div>
+                      </div>
+  
+                      <!-- Players Table Card -->
+                      <div class="bg-white rounded-lg shadow-lg p-6">
+                          <h2 class="text-2xl font-bold text-gray-800 mb-4">Squad Performance</h2>
+                          <div class="overflow-x-auto">
+                              <table class="min-w-full">
+                                  <thead class="bg-gray-50">
+                                      <tr>
+                                          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player Name</th>
+                                          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team</th>
+                                          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                                          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                                          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Games</th>
+                                          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Starts</th>
+                                          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Captain Points</th>
+                                      </tr>
+                                  </thead>
+                                  <tbody class="bg-white divide-y divide-gray-200">
+                  `;
+  
+                  // Add player rows with alternating backgrounds
+                  data.sortedPlayers.forEach((player, index) => {
+                      html += `
+                          <tr class="${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
+                              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${player.name}</td>
+                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${player.team}</td>
+                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${player.position}</td>
+                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${player.totalPointsActive}</td>
+                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${player.gwInSquad}</td>
+                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${player.starts}</td>
+                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${player.cappedPoints}</td>
+                          </tr>
+                      `;
+                  });
+  
+                  html += `
+                                  </tbody>
+                              </table>
+                          </div>
+                      </div>
+                  `;
+  
+                  resultsDiv.innerHTML = html;
+              } catch (error) {
+                  resultsDiv.innerHTML = `
+                      <div class="bg-red-50 border-l-4 border-red-500 p-4">
+                          <div class="flex">
+                              <div class="flex-shrink-0">
+                                  <i class="fas fa-exclamation-circle text-red-500"></i>
+                              </div>
+                              <div class="ml-3">
+                                  <p class="text-sm text-red-700">
+                                      Error: ${error.message}
+                                  </p>
+                              </div>
+                          </div>
+                      </div>
+                  `;
+              }
+          }
+      </script>
 <div class="footer">
     Created by 
     <a href="https://twitter.com/Oladeeayo" target="_blank" rel="noopener noreferrer" class="twitter-link">
         Oladeeayo
     </a>
 </div>
-</body>
-</html>
+  </body>
+  </html>
