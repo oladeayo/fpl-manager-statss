@@ -127,23 +127,24 @@
                             <div class="space-y-2">
                                 <p class="text-gray-600"><strong>Name:</strong> ${data.managerInfo.name}</p>
                                 <p class="text-gray-600"><strong>Team Name:</strong> ${data.managerInfo.teamName}</p>
-                                <p class="text-gray-600"><strong>Total Points:</strong> ${data.managerInfo.managerPoints}</p>
-                                <p class="text-gray-600"><strong>Total Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench}</p>
-                                <p class="text-gray-600"><strong>Total Captain Points:</strong> ${data.managerInfo.totalCaptaincyPoints}</p>
-                                <p class="text-gray-600"><strong>Current Gameweek:</strong> ${data.managerInfo.currentGameweek}</p>
-                                <p class="text-gray-600"><strong>Average Points Per GW:</strong> ${(data.managerInfo.managerPoints / data.managerInfo.currentGameweek).toFixed(1)}</p>
-                                <p class="text-gray-600"><strong>Highest Scoring GW:</strong> ${data.managerInfo.highestPoints} (GW${data.managerInfo.highestPointsGW})</p>
+                                <p class="text-gray-600"><strong>Current Gameweek:</strong> Gameweek ${data.managerInfo.currentGameweek}</p>
+                                <p class="text-gray-600"><strong>Total Points:</strong> ${data.managerInfo.managerPoints} Points</p>
+                                <p class="text-gray-600"><strong>Average Points Per GW:</strong> ${(data.managerInfo.managerPoints / data.managerInfo.currentGameweek).toFixed(1)} Points</p>
+                                <p class="text-gray-600"><strong>Total Captain Points:</strong> ${data.managerInfo.totalCaptaincyPoints} Points</p>
+                                <p class="text-gray-600"><strong>Total Points Lost on Bench:</strong> ${data.managerInfo.totalPointsLostOnBench} Points</p>
+                                <p class="text-gray-600"><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
+                                
                             </div>
                             <div class="space-y-2">
-                                <p class="text-gray-600"><strong>Chips Used:</strong> ${data.managerInfo.allChipsUsed}</p>
-                                <p class="text-gray-600"><strong>Point Difference to World No 1:</strong> ${data.managerInfo.pointDifference}</p>
                                 <p class="text-gray-600"><strong>Overall Rank:</strong> ${data.managerInfo.overallRanking}</p>
-                                <p class="text-gray-600"><strong>2023/2024 Rank:</strong> ${data.managerInfo.lastSeasonRank}</p>
-                                <p class="text-gray-600"><strong>2022/2023 Rank:</strong> ${data.managerInfo.seasonBeforeLastRank}</p>
-                                <p class="text-gray-600"><strong>Lowest Scoring GW:</strong> ${data.managerInfo.lowestPoints} (GW${data.managerInfo.lowestPointsGW})</p>
+                                <p class="text-gray-600"><strong>Point Difference to World No 1:</strong> ${data.managerInfo.pointDifference} Points</p>
+                                <p class="text-gray-600"><strong>Lowest Scoring GW:</strong> ${data.managerInfo.lowestPoints} Points (GW${data.managerInfo.lowestPointsGW})</p>
+                                <p class="text-gray-600"><strong>Highest Scoring GW:</strong> ${data.managerInfo.highestPoints} Points (GW ${data.managerInfo.highestPointsGW})</p>
                                 <p class="text-gray-600"><strong>Highest Rank:</strong> ${data.managerInfo.highestRank} (GW${data.managerInfo.highestRankGW})</p>
                                 <p class="text-gray-600"><strong>Lowest Rank:</strong> ${data.managerInfo.lowestRank} (GW${data.managerInfo.lowestRankGW})</p>
-                            </div>
+                                <p class="text-gray-600"><strong>2023/2024 Rank:</strong> ${data.managerInfo.lastSeasonRank}</p>
+                                <p class="text-gray-600"><strong>2022/2023 Rank:</strong> ${data.managerInfo.seasonBeforeLastRank}</p>
+                                </div>
                         </div>
                     </div>
               `;
