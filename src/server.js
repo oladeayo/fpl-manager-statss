@@ -32,9 +32,6 @@ app.get('/api/bootstrap-static', async (req, res) => {
   }
 });
 
-
-// CORS and middleware setup remains the same...
-
 app.get('/api/analyze-manager/:managerId', async (req, res) => {
   try {
     const { managerId } = req.params;
@@ -64,6 +61,19 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
     const positionPoints = { GKP: {}, DEF: {}, MID: {}, FWD: {} };
 
     // Process each gameweek
+    const weeklyPoints = new Array(currentGameweek).fill(0);
+    const weeklyRanks = new Array(currentGameweek).fill(0);
+    
+    // Track highest and lowest stats
+    let highestPoints = 0;
+    let highestPointsGW = 0;
+    let lowestPoints = Infinity;
+    let lowestPointsGW = 0;
+    let highestRank = Infinity;
+    let highestRankGW = 0;
+    let lowestRank = 0;
+    let lowestRankGW = 0;
+
     for (let gw = 1; gw <= currentGameweek; gw++) {
       const managerPicksResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/event/${gw}/picks/`);
       const managerPicksData = managerPicksResponse.data;
@@ -72,6 +82,8 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
       const isBenchBoost = managerPicksData.active_chip === "bboost";
       const isTripleCaptain = managerPicksData.active_chip === "3xc";
 
+      let gwPoints = 0;
+      
       for (const pick of managerPicks) {
         const playerId = pick.element;
         const player = playerData.elements.find(p => p.id == playerId);
@@ -110,6 +122,7 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
 
           playerStats[playerId].totalPointsActive += activePoints;
           totalPointsActive += activePoints;
+          gwPoints += activePoints;
 
           const position = playerStats[playerId].position;
           if (!positionPoints[position][playerId]) {
@@ -126,6 +139,29 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
           totalPointsLostOnBench += pointsThisWeek;
         }
       }
+      
+      // Update weekly stats
+      weeklyPoints[gw - 1] = gwPoints;
+      const gwRank = historyData.current.find(h => h.event === gw)?.overall_rank || 0;
+      weeklyRanks[gw - 1] = gwRank;
+      
+      // Update highest/lowest tracking
+      if (gwPoints > highestPoints) {
+        highestPoints = gwPoints;
+        highestPointsGW = gw;
+      }
+      if (gwPoints < lowestPoints) {
+        lowestPoints = gwPoints;
+        lowestPointsGW = gw;
+      }
+      if (gwRank < highestRank) {
+        highestRank = gwRank;
+        highestRankGW = gw;
+      }
+      if (gwRank > lowestRank) {
+        lowestRank = gwRank;
+        lowestRankGW = gw;
+      }
     }
 
     // Prepare the complete analysis object
@@ -140,14 +176,25 @@ app.get('/api/analyze-manager/:managerId', async (req, res) => {
         seasonBeforeLastRank: historyData.past.length > 1 ? historyData.past[historyData.past.length - 2].rank.toLocaleString() : "Didn't Play",
         pointDifference: managerEntryData.summary_overall_points - topManagerPoints,
         totalPointsLostOnBench,
-        totalCaptaincyPoints
+        totalCaptaincyPoints,
+        currentGameweek,
+        highestPoints,
+        highestPointsGW,
+        lowestPoints,
+        lowestPointsGW,
+        highestRank: highestRank.toLocaleString(),
+        highestRankGW,
+        lowestRank: lowestRank.toLocaleString(),
+        lowestRankGW
       },
       playerStats: Object.values(playerStats).sort((a, b) => b.totalPointsActive - a.totalPointsActive),
       positionSummary: Object.entries(positionPoints).map(([position, players]) => ({
         position,
         totalPoints: Object.values(players).reduce((sum, player) => sum + player.points, 0),
         players: Object.values(players).sort((a, b) => b.points - a.points)
-      }))
+      })),
+      weeklyPoints,
+      weeklyRanks
     };
 
     res.json(analysis);
