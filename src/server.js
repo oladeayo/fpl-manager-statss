@@ -17,249 +17,174 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, '../public')));
 app.use(express.json());
 
-// Health check endpoint for Vercel
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'healthy' });
-});
+// Cache for bootstrap-static data to reduce API calls
+let bootstrapCache = null;
+let bootstrapCacheTime = null;
+const CACHE_DURATION = 3600000; // 1 hour
 
-// Your existing endpoints remain the same
-app.get('/api/bootstrap-static', async (req, res) => {
-  try {
-    const response = await axios.get('https://fantasy.premierleague.com/api/bootstrap-static/');
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch bootstrap static data' });
+async function getBootstrapData() {
+  const now = Date.now();
+  if (bootstrapCache && bootstrapCacheTime && (now - bootstrapCacheTime < CACHE_DURATION)) {
+    return bootstrapCache;
   }
-});
+  
+  const response = await axios.get('https://fantasy.premierleague.com/api/bootstrap-static/');
+  bootstrapCache = response.data;
+  bootstrapCacheTime = now;
+  return bootstrapCache;
+}
 
 app.get('/api/analyze-manager/:managerId', async (req, res) => {
   try {
-      const { managerId } = req.params;
-      const leagueId = 314; // Your league ID
+    const { managerId } = req.params;
+    const BATCH_SIZE = 5; // Process players in batches
+    
+    // Fetch initial data
+    const [playerData, managerEntry, history] = await Promise.all([
+      getBootstrapData(),
+      axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/`),
+      axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/history/`)
+    ]);
+
+    const managerEntryData = managerEntry.data;
+    const historyData = history.data;
+    const currentEvent = playerData.events.find(event => event.is_current);
+    const currentGameweek = currentEvent ? currentEvent.id : Math.max(...historyData.current.map(h => h.event));
+
+    // Initialize analysis data
+    let analysis = {
+      managerInfo: {
+        name: `${managerEntryData.player_first_name} ${managerEntryData.player_last_name}`,
+        teamName: managerEntryData.name,
+        overallRanking: managerEntryData.summary_overall_rank?.toLocaleString() || "N/A",
+        managerPoints: managerEntryData.summary_overall_points,
+        allChipsUsed: historyData.chips.map(chip => chip.name).join(", ") || "None",
+        lastSeasonRank: historyData.past.length > 0 ? historyData.past[historyData.past.length - 1].rank.toLocaleString() : "Didn't Play",
+        seasonBeforeLastRank: historyData.past.length > 1 ? historyData.past[historyData.past.length - 2].rank.toLocaleString() : "Didn't Play",
+        currentGameweek
+      },
+      playerStats: [],
+      weeklyPoints: new Array(currentGameweek).fill(0),
+      weeklyRanks: new Array(currentGameweek).fill(0),
+      last5GWPerformance: [],
+      upcomingFixtures: []
+    };
+
+    // Process gameweeks in reverse order (most recent first)
+    const gameweeks = Array.from({ length: currentGameweek }, (_, i) => currentGameweek - i);
+    const playerDataMap = new Map();
+
+    // Process only last 5 gameweeks for detailed analysis
+    const recentGameweeks = gameweeks.slice(0, 5);
+    
+    for (const gw of recentGameweeks) {
+      const pickResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/event/${gw}/picks/`);
+      const picks = pickResponse.data.picks;
       
-      // Fetch all required data in parallel
-      const [playerDataResponse, managerEntryResponse, historyResponse, leagueResponse] = await Promise.all([
-        axios.get('https://fantasy.premierleague.com/api/bootstrap-static/'),
-        axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/`),
-        axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/history/`),
-        axios.get(`https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/`)
-      ]);
-  
-      const playerData = playerDataResponse.data;
-      const managerEntryData = managerEntryResponse.data;
-      const historyData = historyResponse.data;
-      const leagueData = leagueResponse.data;
-  
-      const currentGameweek = playerData.events.find(event => event.is_current).id;
-      const topManagerPoints = leagueData.standings.results[0].total;
-      
-      // Initialize analysis data structure
-      let totalCaptaincyPoints = 0;
-      let totalPointsActive = 0;
-      let totalPointsLostOnBench = 0;
-      const playerStats = {};
-      const positionPoints = { GKP: {}, DEF: {}, MID: {}, FWD: {} };
-  
-      // Process each gameweek
-      const weeklyPoints = new Array(currentGameweek).fill(0);
-      const weeklyRanks = new Array(currentGameweek).fill(0);
-      
-      // Track highest and lowest stats
-      let highestPoints = 0;
-      let highestPointsGW = 0;
-      let lowestPoints = Infinity;
-      let lowestPointsGW = 0;
-      let highestRank = Infinity;
-      let highestRankGW = 0;
-      let lowestRank = 0;
-      let lowestRankGW = 0;
-  
-      for (let gw = 1; gw <= currentGameweek; gw++) {
-        const managerPicksResponse = await axios.get(`https://fantasy.premierleague.com/api/entry/${managerId}/event/${gw}/picks/`);
-        const managerPicksData = managerPicksResponse.data;
-        const managerPicks = managerPicksData.picks;
-  
-        const isBenchBoost = managerPicksData.active_chip === "bboost";
-        const isTripleCaptain = managerPicksData.active_chip === "3xc";
-  
-        let gwPoints = 0;
-        
-        for (const pick of managerPicks) {
+      // Process picks in batches
+      for (let i = 0; i < picks.length; i += BATCH_SIZE) {
+        const batchPicks = picks.slice(i, i + BATCH_SIZE);
+        await Promise.all(batchPicks.map(async pick => {
           const playerId = pick.element;
-          const player = playerData.elements.find(p => p.id == playerId);
-          if (!player) continue;
-  
-          const playerHistoryResponse = await axios.get(`https://fantasy.premierleague.com/api/element-summary/${playerId}/`);
-          const playerHistory = playerHistoryResponse.data.history;
-          const gameweekHistory = playerHistory.find(history => history.round === gw);
-          const pointsThisWeek = gameweekHistory ? gameweekHistory.total_points : 0;
-  
-          if (!playerStats[playerId]) {
-            playerStats[playerId] = {
-              name: player.web_name,
-              team: playerData.teams[player.team - 1].name,
-              position: ["GKP", "DEF", "MID", "FWD"][player.element_type - 1],
-              totalPointsActive: 0,
-              gwInSquad: 0,
-              starts: 0,
-              cappedPoints: 0,
-              playerPoints: 0
-            };
-          }
-  
-          const inStarting11 = pick.position <= 11;
-          const isCaptain = pick.is_captain;
-  
-          playerStats[playerId].playerPoints += pointsThisWeek;
-  
-          if (inStarting11 || isBenchBoost) {
-            let activePoints = pointsThisWeek;
-            if (isCaptain) {
-              activePoints *= isTripleCaptain ? 3 : 2;
-              totalCaptaincyPoints += activePoints;
-              playerStats[playerId].cappedPoints += activePoints;
+          
+          if (!playerDataMap.has(playerId)) {
+            const player = playerData.elements.find(p => p.id === playerId);
+            if (!player) return;
+
+            try {
+              const playerHistoryResponse = await axios.get(`https://fantasy.premierleague.com/api/element-summary/${playerId}/`);
+              const playerHistory = playerHistoryResponse.data;
+              
+              playerDataMap.set(playerId, {
+                player,
+                history: playerHistory.history,
+                fixtures: playerHistory.fixtures.slice(0, 5).map(fixture => ({
+                  opponent: playerData.teams.find(t => t.id === (fixture.is_home ? fixture.team_a : fixture.team_h)).short_name,
+                  difficulty: fixture.difficulty
+                }))
+              });
+            } catch (error) {
+              console.error(`Error fetching player ${playerId} data:`, error);
             }
-  
-            playerStats[playerId].totalPointsActive += activePoints;
-            totalPointsActive += activePoints;
-            gwPoints += activePoints;
-  
-            const position = playerStats[playerId].position;
-            if (!positionPoints[position][playerId]) {
-              positionPoints[position][playerId] = {
-                name: playerStats[playerId].name,
-                points: 0
-              };
-            }
-            positionPoints[position][playerId].points += activePoints;
-  
-            if (inStarting11) playerStats[playerId].starts += 1;
-            playerStats[playerId].gwInSquad += 1;
-          } else {
-            totalPointsLostOnBench += pointsThisWeek;
           }
-        }
-        
-        // Update weekly stats
-        weeklyPoints[gw - 1] = gwPoints;
-        const gwRank = historyData.current.find(h => h.event === gw)?.overall_rank || 0;
-        weeklyRanks[gw - 1] = gwRank;
-        
-        // Update highest/lowest tracking
-        if (gwPoints > highestPoints) {
-          highestPoints = gwPoints;
-          highestPointsGW = gw;
-        }
-        if (gwPoints < lowestPoints) {
-          lowestPoints = gwPoints;
-          lowestPointsGW = gw;
-        }
-        if (gwRank < highestRank) {
-          highestRank = gwRank;
-          highestRankGW = gw;
-        }
-        if (gwRank > lowestRank) {
-          lowestRank = gwRank;
-          lowestRankGW = gw;
-        }
+          
+          const playerData = playerDataMap.get(playerId);
+          if (!playerData) return;
+
+          // Update player stats
+          const existingStats = analysis.playerStats.find(p => p.id === playerId);
+          if (!existingStats) {
+            analysis.playerStats.push({
+              id: playerId,
+              name: playerData.player.web_name,
+              team: playerData.player.team,
+              position: ["GKP", "DEF", "MID", "FWD"][playerData.player.element_type - 1],
+              totalPoints: 0,
+              gamesPlayed: 0,
+              last5Points: []
+            });
+          }
+        }));
       }
-  
-      // Prepare the complete analysis object
-      const analysis = {
-        managerInfo: {
-          name: `${managerEntryData.player_first_name} ${managerEntryData.player_last_name}`,
-          teamName: managerEntryData.name,
-          overallRanking: managerEntryData.summary_overall_rank?.toLocaleString() || "N/A",
-          managerPoints: managerEntryData.summary_overall_points,
-          allChipsUsed: historyData.chips.map(chip => chip.name).join(", ") || "None",
-          lastSeasonRank: historyData.past.length > 0 ? historyData.past[historyData.past.length - 1].rank.toLocaleString() : "Didn't Play",
-          seasonBeforeLastRank: historyData.past.length > 1 ? historyData.past[historyData.past.length - 2].rank.toLocaleString() : "Didn't Play",
-          pointDifference: managerEntryData.summary_overall_points - topManagerPoints,
-          totalPointsLostOnBench,
-          totalCaptaincyPoints,
-          currentGameweek,
-          highestPoints,
-          highestPointsGW,
-          lowestPoints,
-          lowestPointsGW,
-          highestRank: highestRank.toLocaleString(),
-          highestRankGW,
-          lowestRank: lowestRank.toLocaleString(),
-          lowestRankGW
-        },
-        playerStats: Object.values(playerStats).sort((a, b) => b.totalPointsActive - a.totalPointsActive),
-        positionSummary: Object.entries(positionPoints).map(([position, players]) => ({
-          position,
-          totalPoints: Object.values(players).reduce((sum, player) => sum + player.points, 0),
-          players: Object.values(players).sort((a, b) => b.points - a.points)
-        })),
-        weeklyPoints,
-        weeklyRanks
-      };
-  
-    // Add processing for last 5 gameweeks performance
-    const last5GWPerformance = [];
-    const upcomingFixtures = [];
+    }
 
-    for (const playerId in playerStats) {
-      const player = playerData.elements.find(p => p.id == playerId);
-      const playerHistoryResponse = await axios.get(`https://fantasy.premierleague.com/api/element-summary/${playerId}/`);
-      const playerHistory = playerHistoryResponse.data.history;
-      
-      // Process last 5 GWs
-      const last5GWs = playerHistory
+    // Calculate last 5 GW performance and upcoming fixtures
+    for (const [playerId, data] of playerDataMap) {
+      const last5Points = data.history
         .filter(h => h.round > currentGameweek - 5 && h.round <= currentGameweek)
-        .sort((a, b) => b.round - a.round);
+        .map(h => h.total_points);
 
-      last5GWPerformance.push({
-        name: player.web_name,
-        gamesPlayed: last5GWs.length,
-        totalPoints: last5GWs.reduce((sum, gw) => sum + gw.total_points, 0)
+      analysis.last5GWPerformance.push({
+        name: data.player.web_name,
+        gamesPlayed: last5Points.length,
+        totalPoints: last5Points.reduce((a, b) => a + b, 0)
       });
 
-      // Process upcoming fixtures
-      const fixtures = playerHistoryResponse.data.fixtures.slice(0, 5).map(fixture => ({
-        opponent: playerData.teams.find(t => t.id === (fixture.is_home ? fixture.team_a : fixture.team_h)).short_name,
-        difficulty: fixture.difficulty
-      }));
-
-      upcomingFixtures.push({
+      analysis.upcomingFixtures.push({
         id: playerId,
-        name: player.web_name,
-        fixtures
+        name: data.player.web_name,
+        fixtures: data.fixtures
       });
     }
 
-    // Add new data to analysis object
-    const analysis = {
-      // Previous analysis properties remain the same
-      last5GWPerformance,
-      upcomingFixtures
-    };
+    // Sort players by total points
+    analysis.playerStats.sort((a, b) => b.totalPoints - a.totalPoints);
 
     res.json(analysis);
   } catch (error) {
     console.error('Error analyzing manager:', error);
-    res.status(500).json({ error: 'Failed to analyze manager' });
+    res.status(500).json({ 
+      error: 'Failed to analyze manager', 
+      details: error.message 
+    });
   }
 });
 
-// Add endpoint for player images
+// Add endpoint for player images with error handling
 app.get('/api/player-image/:playerId', async (req, res) => {
   try {
     const { playerId } = req.params;
     const response = await axios.get(
       `https://resources.premierleague.com/premierleague/photos/players/110x140/p${playerId}.png`,
-      { responseType: 'stream' }
+      { 
+        responseType: 'stream',
+        timeout: 5000 // 5 second timeout
+      }
     );
     response.data.pipe(res);
   } catch (error) {
-    res.status(404).send('Player image not found');
+    // Send a default image or placeholder
+    res.status(404).sendFile(path.join(__dirname, '../public/player-placeholder.png'));
   }
 });
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'healthy' });
+});
+
 module.exports = app;
 
-// Only listen if running directly (not in Vercel)
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
